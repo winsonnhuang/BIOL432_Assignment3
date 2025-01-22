@@ -1,0 +1,112 @@
+---
+title: "Assignment 3"
+author: "Winson Huang"
+date: "2025-01-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# Load the required libraries for data manipulation, visualization
+library(MASS)
+library(klaR)
+library(caret)
+library(tidyverse)
+library(e1071) # Used for skewness and kurtosis
+```
+
+```{r load-data, include=TRUE}
+# Loading the data as well as analyzing any anomalies 
+data <- read.csv("ColauttiBarrett2013Data.csv")
+str(data)
+summary(data)
+colSums(is.na(data))
+
+# Missing data is fixed by using mean imputation
+data_new <- data %>%
+  mutate(across(where(is.numeric), ~ ifelse(is.na(.), mean(., na.rm = TRUE), .)))
+
+# Applying log transformation for data that is highly skewed  
+data_new <- data_new %>%
+  mutate(across(c(Fruits07, Flwr07, InfMass07, InfMass09, InfMass10), ~ log(. + 1)))
+
+# Choosing the columns that are numeric and applying skewness and kurtosis
+numCols <- select_if(data_new, is.numeric)
+skewness <- apply(numCols, 2, skewness)
+kurtosis <- apply(numCols, 2, kurtosis)
+
+list(skewness = skewness, kurtosis = kurtosis)
+
+```
+
+# Data Inspection
+After inspecting and analyzing the data, there were some missing data points and showed some major deviations from normality. The most notable deviations were columns Fruits07, Flwr07, InfMass07, InfMass09, InfMass10, a log transformation was applied to reduce their skewness and make them more normal. However, Flwr07 is an exception as it still has slightly skewed values even after applying the log transformation. 
+
+
+```{r scale-data, include=FALSE}
+# Z-score scaling is used because it turns all the variables to have a mean of 0 and standard deviation of 1 so that it can be compared equally in PCA.
+scaled_data <- data_new %>%
+  mutate(across(where(is.numeric), scale))
+summary(scaled_data)
+```
+
+# Feature Reduction
+Feature Selection through linear model is not necessary for this data set because Discriminant Analysis already reduces dimensionality by prioritizing important features of the data set. Since this data set has a manageable amount of meaningful data, removing them may lose the important information.  
+
+```{r separate-data, include=FALSE}
+features <- scaled_data[, 8:ncol(scaled_data)]
+response <- data_new[, c("Site", "Pop")]
+
+```
+
+```{r lda-model, include=FALSE}
+# Running LDA model for population
+response$Pop <- as.factor(response$Pop) # Converting class to factor
+lda_pop <- lda(Pop ~ ., data = cbind(features, Pop = response$Pop))
+
+# Run LDA for sites
+response$Site <- as.factor(response$Site) # Converting class to factor
+lda_site <- lda(Site ~ ., data = cbind(features, Site = response$Site))
+
+# Summary of LDA models
+lda_pop
+lda_site
+
+# For three sites, 2 LD axes will be needed and for six populations, 5 LD axes will be needed
+```
+
+```{r ld-models, include=FALSE}
+# Scaling coefficients for the LD axes
+lda_pop$scaling
+lda_site$scaling
+
+# Scaling shows the coefficients for the linear discriminants, it relates to the eigenvector because each column of $scaling corresponds to an eigenvector and these eigenvector defines the maximum class separation
+
+# PCA axes maximizes overall variance in data without class labels. Whereas LDA axes maximizes overall separation between classes focusing on between class variance.
+```
+
+```{r predict, include=TRUE}
+# Predict LDA scores for populations
+pred_pop <- predict(lda_pop)
+
+# Predict LDA scores for sites
+pred_site <- predict(lda_site)
+
+# View the scores (LD values)
+head(pred_pop$x)  # LD scores for populations
+head(pred_site$x)        # LD scores for sites
+
+lda_pop$scaling
+lda_site$scaling
+
+```
+
+# LDA Results
+From the $scaling results, key traits distinguishing populations on LD1 and LD2 include FVeg07, HVeg08, FVeg10 and Flwr09, showing genetic differences in vegetative growth and flowering traits. For sites, InfMass07, Flwr08, and Fruits07 contribute strongly, reflecting environmental adaptations. LDA highlights traits directly separating groups, unlike PCA, which captures overall variance. These results suggest that genetic populations differ in vegetative growth and flowering traits, likely due to adaptations to distinct environmental pressures such as climate and resource availability. Regional differences in traits like inflorescence mass and fruit production reflect adaptations to local environmental conditions, such as soil fertility and water availability.
+
+# RDA Explanation
+RDA improves predictions by linking predictors with response variables. Unlike LDA, where it focuses on separating the groups. The r functions used will be listed under.
+rda_model <- rda(features ~ response, data = data)
+summary(rda_model)
+
+# Accuracy Explanation
+To assess accuracy with heavily imbalanced data, confusion matrix is a method that can be used as well as applying cross-validation to keep class proportions balanced during testing.
