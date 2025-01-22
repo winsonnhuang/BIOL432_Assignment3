@@ -14,7 +14,7 @@ library(tidyverse)
 library(e1071) # Used for skewness and kurtosis
 ```
 
-```{r load-data, include=TRUE}
+```{r load-data, include=FALSE}
 # Loading the data as well as analyzing any anomalies 
 data <- read.csv("ColauttiBarrett2013Data.csv")
 str(data)
@@ -84,7 +84,7 @@ lda_site$scaling
 # PCA axes maximizes overall variance in data without class labels. Whereas LDA axes maximizes overall separation between classes focusing on between class variance.
 ```
 
-```{r predict, include=TRUE}
+```{r predict, echo=TRUE}
 # Predict LDA scores for populations
 pred_pop <- predict(lda_pop)
 
